@@ -25,8 +25,6 @@ sudo bash hostip.sh install
 sudo bash hostip.sh
 ```
 
-备用脚本地址：<https://pay.vistart.art/hostip.sh>。
-
 安装器验证二进制 SHA256；后续更新还会验证发布清单的 Ed25519 签名。服务以专用的 hostrouter 用户运行，只授予绑定低端口所需的能力。
 
 ## 菜单与规则
