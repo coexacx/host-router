@@ -1,0 +1,36 @@
+name: checks
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Rust checks
+        run: |
+          rustup toolchain install stable --profile minimal --component rustfmt --component clippy
+          rustup default stable
+          cargo fmt --check
+          cargo clippy --locked --all-targets -- -D warnings
+          cargo test --locked
+          cargo build --locked --release
+          cargo install cargo-audit --locked --version 0.22.2
+          cargo audit
+      - name: Shell checks
+        run: |
+          bash -n hostip.sh
+          shellcheck hostip.sh build.sh
+      - name: TCP and QUIC integration
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install aioquic==1.3.0
+          .venv/bin/python tests/integration.py target/release/host-router
+          .venv/bin/python tests/advanced.py target/release/host-router
+      - name: Independent QUIC client interoperability
+        run: |
+          cargo build --locked --release --manifest-path benchmarks/quic-driver/Cargo.toml
+          .venv/bin/python tests/quic_benchmark.py target/release/host-router benchmarks/quic-driver/target/release/host-router-quic-bench

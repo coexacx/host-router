@@ -1,0 +1,29 @@
+{
+  "default_port": "443",
+  "access_log": false,
+  "dial_timeout_ms": 5000,
+  "sniff_timeout_ms": 5000,
+  "dns_refresh_seconds": 30,
+  "udp_idle_seconds": 60,
+  "max_tcp_connections": 1024,
+  "max_udp_sessions": 512,
+  "max_connections_per_ip": 64,
+  "max_pending_handshakes": 64,
+  "udp_queue_bytes": 16777216,
+  "rules": [
+    {
+      "listen": "443",
+      "domain": "app.example.com",
+      "target": "home.example.net:443",
+      "protocol": "both",
+      "note": ""
+    },
+    {
+      "listen": "443",
+      "domain": "*.example.org",
+      "target": "192.0.2.20:8443",
+      "protocol": "both",
+      "note": ""
+    }
+  ]
+}
