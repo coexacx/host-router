@@ -71,7 +71,14 @@ async def main():
         tr,mux=await asyncio.get_running_loop().create_datagram_endpoint(lambda:Mux(("127.0.0.1",29520)),local_addr=("127.0.0.1",0))
         timers=asyncio.create_task(mux.timers())
         try:await asyncio.wait_for(mux.done,8)
-        finally:timers.cancel();tr.close()
+        finally:
+            timers.cancel()
+            # Closing the UDP transport alone leaves the remote QUIC endpoint
+            # retransmitting its last stream data, correctly refreshing relay idle.
+            for connection in mux.conn:
+                connection["q"].close();mux.flush(connection)
+            await asyncio.sleep(.05)
+            tr.close()
         print("PASS two QUIC domains on the same UDP source port; fragmented/out-of-order CRYPTO",flush=True)
         # A stale configuration transaction must never overwrite a newer one.
         old=json.loads(path.read_text())
@@ -93,8 +100,12 @@ async def main():
             if i%64==0:await asyncio.sleep(.001)
         udp.close();await asyncio.sleep(2)
         assert (await http(29520)).startswith(b"A:")
-        stats=json.loads(cli(path,"status").stdout)
-        assert stats["pending_handshakes"]==0 and stats["udp_active"]==0 and stats["queued_udp_bytes"]==0,stats
+        deadline=time.monotonic()+5
+        while True:
+            stats=json.loads(cli(path,"status").stdout)
+            if stats["pending_handshakes"]==stats["udp_active"]==stats["queued_udp_bytes"]==0:break
+            assert time.monotonic()<deadline,stats
+            await asyncio.sleep(.1)
         print("PASS 20000 malformed/random UDP packets; service remains healthy",flush=True)
         # Spoofed or replayed PROXY headers never select a route.
         r,w=await asyncio.open_connection("127.0.0.1",29520);w.write(b"PROXY TCP4 1.2.3.4 5.6.7.8 1234 443\r\n");await w.drain()
