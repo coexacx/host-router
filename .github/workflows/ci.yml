@@ -27,9 +27,11 @@ jobs:
       - name: TCP and QUIC integration
         run: |
           python3 -m venv .venv
-          .venv/bin/pip install aioquic==1.3.0
+          .venv/bin/pip install aioquic==1.3.0 dnslib==0.9.26
           .venv/bin/python tests/integration.py target/release/host-router
           .venv/bin/python tests/advanced.py target/release/host-router
+      - name: Isolated network faults and DNS failover
+        run: sudo unshare --net --mount --propagation private .venv/bin/python tests/network_faults.py target/release/host-router
       - name: Real terminal menu interactions
         run: python3 tests/menu.py target/release/host-router
       - name: Isolated resource pressure and session preservation

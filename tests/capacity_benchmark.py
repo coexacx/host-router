@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
-"""Interleaved 0.1.0 versus auto-capacity release, identical rules and configured ceilings."""
-import json,os,pathlib,statistics,subprocess,sys,tempfile,threading,time
+"""Interleaved previous versus candidate release, identical rules and configured ceilings."""
+import json,os,pathlib,resource,statistics,subprocess,sys,tempfile,threading,time
+# SSH shells often inherit a 1024-descriptor soft limit, causing the automatic
+# capacity guard to reject a 128-client churn test. Set the same process-local
+# budget for both versions; never change host-wide limits or service units.
+soft,hard=resource.getrlimit(resource.RLIMIT_NOFILE)
+benchmark_fd_limit=max(soft,min(hard,65536))
+assert benchmark_fd_limit>=8192,"benchmark requires at least 8192 descriptors"
+resource.setrlimit(resource.RLIMIT_NOFILE,(benchmark_fd_limit,hard))
 root=pathlib.Path(tempfile.mkdtemp(prefix="host-router-capacity-benchmark-"))
 rust,old,driver=map(str,map(pathlib.Path,sys.argv[1:4]))
 cfg={"default_port":"443","access_log":False,"dial_timeout_ms":5000,
@@ -64,7 +71,7 @@ try:
   for kind in ["old","rust"]:
    rows=[x for x in result if x["kernel"]==kind and x["mode"]==mode]
    summaries.append(dict(kernel=kind,mode=mode,**{k:statistics.median(x[k] for x in rows) for k in ["gbps","requests_per_second","cpu_percent","peak_rss_kib","p95_ms"]}))
- report={"versions":{"old":subprocess.check_output([old,"--version"],text=True).strip(),"new":subprocess.check_output([rust,"--version"],text=True).strip()},"raw":result,"medians":summaries,"environment":{"cpus":os.cpu_count(),"GOMAXPROCS":2,"rust_workers":2},"root":str(root)}
+ report={"versions":{"old":subprocess.check_output([old,"--version"],text=True).strip(),"new":subprocess.check_output([rust,"--version"],text=True).strip()},"raw":result,"medians":summaries,"environment":{"cpus":os.cpu_count(),"GOMAXPROCS":2,"rust_workers":2,"fd_soft_limit":benchmark_fd_limit},"root":str(root)}
  (root/"results.json").write_text(json.dumps(report,indent=2))
  print(json.dumps(report,indent=2),flush=True)
 finally:

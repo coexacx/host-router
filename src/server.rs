@@ -37,16 +37,85 @@ impl Runtime {
         })
     }
 }
+// Fixed-size counters keep failure diagnostics bounded and avoid per-connection logs.
+#[derive(Debug, Clone, Copy)]
+#[repr(usize)]
+enum TcpFailure {
+    Admission,
+    Socket,
+    HandshakeTimeout,
+    HandshakeRejected,
+    RouteMissing,
+    Dns,
+    ConnectTimeout,
+    ConnectError,
+    Relay,
+}
+impl TcpFailure {
+    const ALL: [Self; 9] = [
+        Self::Admission,
+        Self::Socket,
+        Self::HandshakeTimeout,
+        Self::HandshakeRejected,
+        Self::RouteMissing,
+        Self::Dns,
+        Self::ConnectTimeout,
+        Self::ConnectError,
+        Self::Relay,
+    ];
+    fn key(self) -> &'static str {
+        match self {
+            Self::Admission => "admission_rejected",
+            Self::Socket => "socket_error",
+            Self::HandshakeTimeout => "handshake_timeout",
+            Self::HandshakeRejected => "handshake_rejected",
+            Self::RouteMissing => "route_missing",
+            Self::Dns => "dns_error",
+            Self::ConnectTimeout => "connect_timeout",
+            Self::ConnectError => "connect_error",
+            Self::Relay => "relay_error",
+        }
+    }
+}
+impl std::fmt::Display for TcpFailure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.key())
+    }
+}
+impl std::error::Error for TcpFailure {}
+
 #[derive(Default)]
 pub struct Stats {
     tcp_accepted: AtomicU64,
     tcp_failed: AtomicU64,
+    tcp_failure_reasons: [AtomicU64; 9],
     tcp_bytes: AtomicU64,
     udp_created: AtomicU64,
     udp_rejected: AtomicU64,
     udp_packets: AtomicU64,
     udp_bytes: AtomicU64,
 }
+impl Stats {
+    fn tcp_failure(&self, kind: TcpFailure) {
+        self.tcp_failure_reasons[kind as usize].fetch_add(1, Ordering::Relaxed);
+        self.tcp_failed.fetch_add(1, Ordering::Relaxed);
+    }
+    fn tcp_failures(&self) -> serde_json::Value {
+        TcpFailure::ALL
+            .into_iter()
+            .map(|kind| {
+                (
+                    kind.key().to_owned(),
+                    serde_json::Value::from(
+                        self.tcp_failure_reasons[kind as usize].load(Ordering::Relaxed),
+                    ),
+                )
+            })
+            .collect::<serde_json::Map<_, _>>()
+            .into()
+    }
+}
+
 pub struct Shared {
     pub runtime: RwLock<Arc<Runtime>>,
     pub shutdown: CancellationToken,
@@ -91,6 +160,7 @@ impl Shared {
             "queued_udp_bytes":c.udp_queue_bytes-self.bytes.available_permits(),
             "tracked_ips":self.ips.lock().unwrap().len(),
             "tcp_accepted":s.tcp_accepted.load(Ordering::Relaxed),"tcp_failed":s.tcp_failed.load(Ordering::Relaxed),
+            "tcp_failure_reasons":s.tcp_failures(),
             "tcp_bytes":s.tcp_bytes.load(Ordering::Relaxed),"udp_created":s.udp_created.load(Ordering::Relaxed),
             "udp_packets":s.udp_packets.load(Ordering::Relaxed),"udp_bytes":s.udp_bytes.load(Ordering::Relaxed),
             "udp_rejected":s.udp_rejected.load(Ordering::Relaxed),
@@ -257,22 +327,22 @@ async fn tcp_accept(
             continue;
         };
         let Some(admission) = s.capacity.enter(Kind::Tcp) else {
-            s.stats.tcp_failed.fetch_add(1, Ordering::Relaxed);
+            s.stats.tcp_failure(TcpFailure::Admission);
             tokio::time::sleep(Duration::from_millis(2)).await;
             continue;
         };
         let Some(pending) = s.pending_guard() else {
-            s.stats.tcp_failed.fetch_add(1, Ordering::Relaxed);
+            s.stats.tcp_failure(TcpFailure::Admission);
             tokio::time::sleep(Duration::from_millis(2)).await;
             continue;
         };
         let Ok(limit) = s.tcp.clone().try_acquire_owned() else {
-            s.stats.tcp_failed.fetch_add(1, Ordering::Relaxed);
+            s.stats.tcp_failure(TcpFailure::Admission);
             continue;
         };
         let peer = net::normalize(peer);
         let Some(ip_guard) = s.ip_guard(peer.ip()) else {
-            s.stats.tcp_failed.fetch_add(1, Ordering::Relaxed);
+            s.stats.tcp_failure(TcpFailure::Admission);
             continue;
         };
         let rt = s.snapshot();
@@ -287,8 +357,13 @@ async fn tcp_accept(
             let _ip = ip_guard;
             let result = tokio::select! {_=s.shutdown.cancelled()=>return,
             r=tcp_flow(stream,peer,routes,rt,pending,&s)=>r};
-            if result.is_err() {
-                s.stats.tcp_failed.fetch_add(1, Ordering::Relaxed);
+            if let Err(error) = result {
+                s.stats.tcp_failure(
+                    error
+                        .downcast_ref::<TcpFailure>()
+                        .copied()
+                        .unwrap_or(TcpFailure::Relay),
+                );
             }
         });
     }
@@ -301,53 +376,86 @@ async fn tcp_flow(
     pending: OwnedSemaphorePermit,
     s: &Arc<Shared>,
 ) -> Result<()> {
-    net::tune_tcp(&stream)?;
+    net::tune_tcp(&stream).context(TcpFailure::Socket)?;
     let (host, prefix) = tokio::time::timeout(
         Duration::from_millis(rt.cfg.sniff_timeout_ms),
         sniff::tcp(&mut stream, routes.tcp.has_names()),
     )
-    .await??;
-    let route = routes.tcp.lookup(host.as_deref()).context("no TCP route")?;
-    let mut upstream = tokio::time::timeout(
-        Duration::from_millis(rt.cfg.dial_timeout_ms),
-        tcp_dial(&rt, &route),
-    )
-    .await??;
+    .await
+    .context(TcpFailure::HandshakeTimeout)?
+    .context(TcpFailure::HandshakeRejected)?;
+    let route = routes
+        .tcp
+        .lookup(host.as_deref())
+        .context(TcpFailure::RouteMissing)?;
+    let deadline = tokio::time::Instant::now() + Duration::from_millis(rt.cfg.dial_timeout_ms);
+    let mut upstream = tokio::time::timeout_at(deadline, tcp_dial(&rt, &route, deadline))
+        .await
+        .context(TcpFailure::ConnectTimeout)??;
     drop(pending);
-    net::tune_tcp(&upstream)?;
+    net::tune_tcp(&upstream).context(TcpFailure::Socket)?;
     if rt.cfg.access_log {
         tracing::info!(protocol="tcp",client=%peer,domain=?host,target=%route.host,port=route.port,"forward");
     }
-    upstream.write_all(&prefix).await?;
+    upstream
+        .write_all(&prefix)
+        .await
+        .context(TcpFailure::Relay)?;
     let prefix_bytes = prefix.len() as u64;
     // Long-lived streams must not retain an obsolete routing table/DNS cache after reload.
     drop(prefix);
     drop(route);
     drop(routes);
     drop(rt);
-    let (a, b) = crate::relay::copy(&stream, &upstream).await?;
+    let (a, b) = crate::relay::copy(&stream, &upstream)
+        .await
+        .context(TcpFailure::Relay)?;
     s.stats
         .tcp_bytes
         .fetch_add(a + b + prefix_bytes, Ordering::Relaxed);
     Ok(())
 }
-async fn tcp_dial(rt: &Runtime, r: &Route) -> Result<TcpStream> {
-    let addresses = rt.dns.lookup(&r.host, r.port).await?;
-    let each = Duration::from_millis((rt.cfg.dial_timeout_ms / addresses.len() as u64).max(100));
+async fn tcp_dial(rt: &Runtime, r: &Route, deadline: tokio::time::Instant) -> Result<TcpStream> {
+    let addresses = rt
+        .dns
+        .lookup(&r.host, r.port)
+        .await
+        .context(TcpFailure::Dns)?;
+    let count = addresses.len();
     let mut last = None;
-    for addr in addresses {
+    let mut timed_out = false;
+    for (index, addr) in addresses.into_iter().enumerate() {
         // Refuse direct self-loops, including wildcard listeners on a local address.
-        ensure!(
-            !local_loop(rt, addr, true),
-            "target points back to a TCP listener"
-        );
+        if local_loop(rt, addr, true) {
+            return Err(anyhow::anyhow!("target points back to a TCP listener"))
+                .context(TcpFailure::ConnectError);
+        }
+        // DNS and all addresses share one deadline. Recompute from the time left,
+        // so a slow query or a blackholed first IP cannot starve healthy later IPs.
+        let remaining = deadline.saturating_duration_since(tokio::time::Instant::now());
+        if remaining.is_zero() {
+            return Err(anyhow::anyhow!("backend connect deadline elapsed"))
+                .context(TcpFailure::ConnectTimeout);
+        }
+        let each = remaining / (count - index) as u32;
         match tokio::time::timeout(each, TcpStream::connect(addr)).await {
             Ok(Ok(s)) => return Ok(s),
             Ok(Err(e)) => last = Some(e.to_string()),
-            Err(_) => last = Some("connect timeout".into()),
+            Err(_) => {
+                timed_out = true;
+                last = Some("connect timeout".into());
+            }
         }
     }
-    anyhow::bail!("all backend addresses failed: {}", last.unwrap_or_default())
+    Err(anyhow::anyhow!(
+        "all backend addresses failed: {}",
+        last.unwrap_or_default()
+    ))
+    .context(if timed_out {
+        TcpFailure::ConnectTimeout
+    } else {
+        TcpFailure::ConnectError
+    })
 }
 fn local_loop(rt: &Runtime, target: SocketAddr, tcp: bool) -> bool {
     rt.tables.iter().any(|(a, r)| {

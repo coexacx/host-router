@@ -102,5 +102,25 @@ pub fn status(v: &Value) {
         "  文件上限    {}",
         n(v, "/capacity/resources/fd_soft_limit")
     );
+    if n(v, "/tcp_failed") > 0 {
+        println!("\n  累计连接异常\n");
+        for (key, label) in [
+            ("admission_rejected", "接入受限"),
+            ("socket_error", "套接字异常"),
+            ("handshake_timeout", "握手超时"),
+            ("handshake_rejected", "握手中断或无效"),
+            ("route_missing", "未匹配规则"),
+            ("dns_error", "目标解析失败"),
+            ("connect_timeout", "目标连接超时"),
+            ("connect_error", "目标连接失败"),
+            ("relay_error", "传输中断"),
+        ] {
+            let count = n(v, &format!("/tcp_failure_reasons/{key}"));
+            if count > 0 {
+                println!("  {label:<10} {count}");
+            }
+        }
+        println!("\n  传输中断也包含客户端或目标主动重置连接。");
+    }
     println!("\n  TCP 与 QUIC 共用资源预算，两项上限不能相加。");
 }
