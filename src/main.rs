@@ -2,6 +2,7 @@
 mod capacity;
 mod config;
 mod control;
+mod display;
 mod dns;
 mod net;
 mod quic;
@@ -39,6 +40,11 @@ enum Command {
         asset: String,
     },
     Summary,
+    ValidateInput {
+        #[arg(value_parser=["listen","domain","target","port"])]
+        kind: String,
+        value: String,
+    },
     CapacityPlan {
         #[arg(long)]
         systemd: bool,
@@ -73,8 +79,14 @@ enum Command {
         file: Option<PathBuf>,
     },
     Init,
-    Status,
-    List,
+    Status {
+        #[arg(long)]
+        human: bool,
+    },
+    List {
+        #[arg(long)]
+        human: bool,
+    },
     Apply {
         #[arg(long)]
         file: PathBuf,
@@ -90,6 +102,8 @@ enum Command {
         protocol: String,
         #[arg(long)]
         offline: bool,
+        #[arg(long)]
+        check_only: bool,
     },
     Delete {
         #[arg(required=true,num_args=1..)]
@@ -243,6 +257,31 @@ async fn run() -> Result<()> {
                 );
             }
         }
+        Command::ValidateInput { kind, value } => match kind.as_str() {
+            "listen" => {
+                config::listens(&value)?;
+            }
+            "domain" => {
+                config::domain(&value, true)?;
+            }
+            "target" => {
+                let c = Config {
+                    rules: vec![Rule {
+                        listen: "127.0.0.1:12345".into(),
+                        domain: "validation.test".into(),
+                        target: value,
+                        protocol: Protocol::Both,
+                        note: String::new(),
+                    }],
+                    ..Config::default()
+                };
+                c.tables()?;
+            }
+            "port" => {
+                config::port(&value)?;
+            }
+            _ => unreachable!(),
+        },
         Command::Summary => {
             let cfg = read_cfg(&cli.config)?;
             let live = control::request(
@@ -390,8 +429,12 @@ async fn run() -> Result<()> {
             control::atomic_config(&cli.config, &Config::default())?;
             println!("Initialized {}", cli.config.display());
         }
-        Command::List => {
+        Command::List { human } => {
             let cfg = read_cfg(&cli.config)?;
+            if human {
+                display::rules(&cfg);
+                return Ok(());
+            }
             println!(
                 "{:<5} {:<24} {:<8} {:<32} TARGET",
                 "ID", "LISTEN", "PROTO", "DOMAIN"
@@ -407,7 +450,7 @@ async fn run() -> Result<()> {
                 );
             }
         }
-        Command::Status => {
+        Command::Status { human } => {
             let r = control::request(
                 &cli.config,
                 control::Request {
@@ -418,7 +461,11 @@ async fn run() -> Result<()> {
             )
             .await?;
             ensure!(r.ok, "{}", r.message);
-            println!("{}", serde_json::to_string_pretty(&r.data)?);
+            if human {
+                display::status(&r.data.unwrap_or_default())
+            } else {
+                println!("{}", serde_json::to_string_pretty(&r.data)?);
+            }
         }
         Command::Apply { file, offline } => {
             commit(
@@ -434,6 +481,7 @@ async fn run() -> Result<()> {
             listen,
             protocol,
             offline,
+            check_only,
         } => {
             let p = match protocol.as_str() {
                 "both" => Protocol::Both,
@@ -448,8 +496,16 @@ async fn run() -> Result<()> {
             let base = cfg.clone();
             let n = added.len();
             cfg.rules.extend(added);
-            commit(&cli.config, cfg, offline, base).await?;
-            println!("Added {n} rules as one transaction.");
+            if check_only {
+                cfg.tables()?;
+                display::rules(&Config {
+                    rules: cfg.rules[cfg.rules.len() - n..].to_vec(),
+                    ..Config::default()
+                });
+            } else {
+                commit(&cli.config, cfg, offline, base).await?;
+                println!("Added {n} rules as one transaction.");
+            }
         }
         Command::Delete { ids, offline } => {
             let mut cfg = read_cfg(&cli.config)?;
