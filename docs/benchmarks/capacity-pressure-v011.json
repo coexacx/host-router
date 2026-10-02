@@ -1,0 +1,248 @@
+{
+  "initial": {
+    "capacity": {
+      "admission_rejected": 0,
+      "capacity_percent": 100,
+      "ceilings": {
+        "pending": 1024,
+        "per_ip": 4096,
+        "tcp": 65536,
+        "udp": 16384
+      },
+      "effective": {
+        "fd_budget": 1536,
+        "memory_units": 896,
+        "new_tcp_per_second": 2048,
+        "new_udp_per_second": 100,
+        "pending": 64,
+        "queue_bytes": 10066329,
+        "tcp": 256,
+        "udp": 298
+      },
+      "mode": "auto",
+      "pressure": "normal",
+      "resources": {
+        "cgroup_cpu_percent": 0.0,
+        "cpu_cores": 0.5,
+        "fd_soft_limit": 2048,
+        "memory_available_bytes": 265277440,
+        "memory_total_bytes": 268435456,
+        "process_cpu_percent": 0.0,
+        "system_cpu_percent": 0.0,
+        "valid": true
+      },
+      "samples": 0
+    },
+    "pending_handshakes": 0,
+    "queued_udp_bytes": 0,
+    "rules": 1,
+    "tcp_accepted": 0,
+    "tcp_active": 0,
+    "tcp_bytes": 0,
+    "tcp_failed": 0,
+    "tracked_ips": 0,
+    "udp_active": 0,
+    "udp_bytes": 0,
+    "udp_created": 0,
+    "udp_packets": 0,
+    "udp_rejected": 0,
+    "version": "0.1.1"
+  },
+  "memory_pressure": {
+    "capacity": {
+      "admission_rejected": 0,
+      "capacity_percent": 0,
+      "ceilings": {
+        "pending": 1024,
+        "per_ip": 4096,
+        "tcp": 65536,
+        "udp": 16384
+      },
+      "effective": {
+        "fd_budget": 1536,
+        "memory_units": 0,
+        "new_tcp_per_second": 0,
+        "new_udp_per_second": 0,
+        "pending": 0,
+        "queue_bytes": 629145,
+        "tcp": 0,
+        "udp": 0
+      },
+      "mode": "auto",
+      "pressure": "memory_critical",
+      "resources": {
+        "cgroup_cpu_percent": 0.7401426385178258,
+        "cpu_cores": 0.5,
+        "fd_soft_limit": 2048,
+        "memory_available_bytes": 13598720,
+        "memory_total_bytes": 16777216,
+        "process_cpu_percent": 0.9985734464622584,
+        "system_cpu_percent": 3.25,
+        "valid": true
+      },
+      "samples": 1
+    },
+    "pending_handshakes": 0,
+    "queued_udp_bytes": 0,
+    "rules": 1,
+    "tcp_accepted": 3,
+    "tcp_active": 3,
+    "tcp_bytes": 0,
+    "tcp_failed": 0,
+    "tracked_ips": 1,
+    "udp_active": 1,
+    "udp_bytes": 4042,
+    "udp_created": 1,
+    "udp_packets": 10,
+    "udp_rejected": 0,
+    "version": "0.1.1"
+  },
+  "memory_recovery": {
+    "capacity": {
+      "admission_rejected": 1,
+      "capacity_percent": 10,
+      "ceilings": {
+        "pending": 1024,
+        "per_ip": 4096,
+        "tcp": 65536,
+        "udp": 16384
+      },
+      "effective": {
+        "fd_budget": 1536,
+        "memory_units": 89,
+        "new_tcp_per_second": 204,
+        "new_udp_per_second": 10,
+        "pending": 6,
+        "queue_bytes": 10066329,
+        "tcp": 44,
+        "udp": 29
+      },
+      "mode": "auto",
+      "pressure": "recovering",
+      "resources": {
+        "cgroup_cpu_percent": 0.41726074485558046,
+        "cpu_cores": 0.5,
+        "fd_soft_limit": 2048,
+        "memory_available_bytes": 265482240,
+        "memory_total_bytes": 268435456,
+        "process_cpu_percent": 0.0,
+        "system_cpu_percent": 1.1264080100125156,
+        "valid": true
+      },
+      "samples": 6
+    },
+    "pending_handshakes": 0,
+    "queued_udp_bytes": 0,
+    "rules": 1,
+    "tcp_accepted": 3,
+    "tcp_active": 3,
+    "tcp_bytes": 0,
+    "tcp_failed": 1,
+    "tracked_ips": 1,
+    "udp_active": 1,
+    "udp_bytes": 4193,
+    "udp_created": 1,
+    "udp_packets": 14,
+    "udp_rejected": 0,
+    "version": "0.1.1"
+  },
+  "cpu_pressure": {
+    "capacity": {
+      "admission_rejected": 1,
+      "capacity_percent": 22,
+      "ceilings": {
+        "pending": 1024,
+        "per_ip": 4096,
+        "tcp": 65536,
+        "udp": 16384
+      },
+      "effective": {
+        "fd_budget": 1536,
+        "memory_units": 197,
+        "new_tcp_per_second": 450,
+        "new_udp_per_second": 22,
+        "pending": 14,
+        "queue_bytes": 10066329,
+        "tcp": 98,
+        "udp": 65
+      },
+      "mode": "auto",
+      "pressure": "cpu",
+      "resources": {
+        "cgroup_cpu_percent": 100.09876839714416,
+        "cpu_cores": 0.5,
+        "fd_soft_limit": 2048,
+        "memory_available_bytes": 265449472,
+        "memory_total_bytes": 268435456,
+        "process_cpu_percent": 0.0,
+        "system_cpu_percent": 14.19676214196762,
+        "valid": true
+      },
+      "samples": 20
+    },
+    "pending_handshakes": 0,
+    "queued_udp_bytes": 0,
+    "rules": 1,
+    "tcp_accepted": 3,
+    "tcp_active": 3,
+    "tcp_bytes": 0,
+    "tcp_failed": 1,
+    "tracked_ips": 1,
+    "udp_active": 1,
+    "udp_bytes": 4345,
+    "udp_created": 1,
+    "udp_packets": 18,
+    "udp_rejected": 0,
+    "version": "0.1.1"
+  },
+  "cpu_recovery": {
+    "capacity": {
+      "admission_rejected": 1,
+      "capacity_percent": 32,
+      "ceilings": {
+        "pending": 1024,
+        "per_ip": 4096,
+        "tcp": 65536,
+        "udp": 16384
+      },
+      "effective": {
+        "fd_budget": 1536,
+        "memory_units": 286,
+        "new_tcp_per_second": 655,
+        "new_udp_per_second": 32,
+        "pending": 20,
+        "queue_bytes": 10066329,
+        "tcp": 143,
+        "udp": 95
+      },
+      "mode": "auto",
+      "pressure": "recovering",
+      "resources": {
+        "cgroup_cpu_percent": 0.3904845190049954,
+        "cpu_cores": 0.5,
+        "fd_soft_limit": 2048,
+        "memory_available_bytes": 265216000,
+        "memory_total_bytes": 268435456,
+        "process_cpu_percent": 0.0,
+        "system_cpu_percent": 1.0025062656641603,
+        "valid": true
+      },
+      "samples": 25
+    },
+    "pending_handshakes": 0,
+    "queued_udp_bytes": 0,
+    "rules": 1,
+    "tcp_accepted": 3,
+    "tcp_active": 3,
+    "tcp_bytes": 0,
+    "tcp_failed": 1,
+    "tracked_ips": 1,
+    "udp_active": 1,
+    "udp_bytes": 4497,
+    "udp_created": 1,
+    "udp_packets": 22,
+    "udp_rejected": 0,
+    "version": "0.1.1"
+  },
+  "result": "PASS"
+}

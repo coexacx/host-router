@@ -29,7 +29,7 @@ sudo bash hostip.sh
 
 ## 菜单与规则
 
-菜单顶部显示内核版本、运行状态、生效规则数、TCP/UDP 监听地址数和 DDNS 刷新间隔。一个端口同时监听 IPv4、IPv6 时，计为两个监听地址。
+菜单顶部显示内核版本、运行状态、生效规则数、TCP/UDP 监听地址数和 DDNS 刷新间隔，以及 TCP/QUIC 当前会话数与有效容量。一个端口同时监听 IPv4、IPv6 时，计为两个监听地址。
 
 单个监听端口批量添加时，每行填写：
 
@@ -66,6 +66,12 @@ host-router -c /etc/host-router/config.json set --dns-refresh 30
 服务运行时默认通过本机私有控制套接字提交变更。服务已停止时，可明确添加 `--offline`；随后启动服务才会绑定监听端口。资源上限字段变更需要停止服务后修改并重启。
 
 配置文件位于 `/etc/host-router/config.json`，二进制位于 `/usr/local/bin/host-router`。日志通过 `journalctl -u host-router` 查看。
+
+## 自动容量管理
+
+0.1.1 默认检测 CPU、可用内存、cgroup v1/v2 限制和文件描述符，计算 TCP/QUIC 共用资源预算。每 2 秒采样；持续高 CPU 或内存压力时收紧新连接，健康后逐步恢复，不因额度调整主动关闭已有会话。
+
+安装器同步为本服务设置内存边界和文件描述符上限。原配置中明确填写的连接上限继续保留。详见 [自动容量管理](docs/自动容量管理.md)，其中说明了阈值、状态字段、手动配置及保护边界。
 
 ## DDNS
 
@@ -116,6 +122,6 @@ bash build.sh x86_64-unknown-linux-musl
 
 发布版的静态编译需要对应的 musl 工具链和 C 编译器。功能测试使用独立的 Python aioquic 实现生成 TLS/QUIC 流量，见 `tests/`。生产运行不依赖这些测试工具。
 
-性能和安全测试范围见 [docs/验收报告.md](docs/验收报告.md)。进程 RSS 不包含内核 socket/pipe 内存；回环压测结果不等于公网链路带宽。
+0.1.1 性能、容量保护与安全验收见 [新版验收记录](docs/0.1.1验收.md)；原 Go/Rust 对比见 [0.1.0 验收报告](docs/验收报告.md)。进程 RSS 不包含内核 socket/pipe 内存；回环压测结果不等于公网链路带宽。
 
 MIT License。

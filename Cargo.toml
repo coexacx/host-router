@@ -1,6 +1,6 @@
 [package]
 name = "host-router"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 rust-version = "1.89"
 license = "MIT"
@@ -20,7 +20,7 @@ quinn-udp = { version = "0.5.14", default-features = false }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 
-nix = { version = "0.31.3", features = ["fs", "zerocopy", "user"] }
+nix = { version = "0.31.3", features = ["fs", "zerocopy", "user", "feature"] }
 
 ring = "0.17.14"
 

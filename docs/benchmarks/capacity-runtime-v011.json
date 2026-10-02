@@ -1,0 +1,283 @@
+{
+  "idle": {
+    "old": {
+      "cpu_percent": 0.0,
+      "stats": {
+        "pending_handshakes": 0,
+        "queued_udp_bytes": 0,
+        "rules": 0,
+        "tcp_accepted": 0,
+        "tcp_active": 0,
+        "tcp_bytes": 0,
+        "tcp_failed": 0,
+        "tracked_ips": 0,
+        "udp_active": 0,
+        "udp_bytes": 0,
+        "udp_created": 0,
+        "udp_packets": 0,
+        "udp_rejected": 0,
+        "version": "0.1.0"
+      }
+    },
+    "new": {
+      "cpu_percent": 0.033319211107670436,
+      "stats": {
+        "capacity": {
+          "admission_rejected": 0,
+          "capacity_percent": 100,
+          "ceilings": {
+            "pending": 1024,
+            "per_ip": 4096,
+            "tcp": 65536,
+            "udp": 16384
+          },
+          "effective": {
+            "fd_budget": 1047552,
+            "memory_units": 76031,
+            "new_tcp_per_second": 16384,
+            "new_udp_per_second": 800,
+            "pending": 512,
+            "queue_bytes": 67108864,
+            "tcp": 38015,
+            "udp": 16384
+          },
+          "mode": "auto",
+          "pressure": "normal",
+          "resources": {
+            "cgroup_cpu_percent": 0.0,
+            "cpu_cores": 4.0,
+            "fd_soft_limit": 1048576,
+            "memory_available_bytes": 14688894976,
+            "memory_total_bytes": 16777072640,
+            "process_cpu_percent": 0.0,
+            "system_cpu_percent": 0.875,
+            "valid": true
+          },
+          "samples": 15
+        },
+        "pending_handshakes": 0,
+        "queued_udp_bytes": 0,
+        "rules": 0,
+        "tcp_accepted": 0,
+        "tcp_active": 0,
+        "tcp_bytes": 0,
+        "tcp_failed": 0,
+        "tracked_ips": 0,
+        "udp_active": 0,
+        "udp_bytes": 0,
+        "udp_created": 0,
+        "udp_packets": 0,
+        "udp_rejected": 0,
+        "version": "0.1.1"
+      }
+    }
+  },
+  "quic": {
+    "down": [
+      {
+        "bytes": 5595201536,
+        "errors": 0,
+        "gbps": 4.4440918659583915,
+        "seconds": 10.072161791,
+        "transfers": 667,
+        "mode": "direct",
+        "direction": "down",
+        "router_cpu_percent": 0.0
+      },
+      {
+        "bytes": 2650800128,
+        "errors": 0,
+        "gbps": 2.10642632074655,
+        "seconds": 10.067478181,
+        "transfers": 316,
+        "mode": "routed",
+        "direction": "down",
+        "router_cpu_percent": 72.96465898980495,
+        "router_stats": {
+          "capacity": {
+            "admission_rejected": 0,
+            "capacity_percent": 100,
+            "ceilings": {
+              "pending": 1024,
+              "per_ip": 128,
+              "tcp": 65536,
+              "udp": 16384
+            },
+            "effective": {
+              "fd_budget": 1047552,
+              "memory_units": 76031,
+              "new_tcp_per_second": 16384,
+              "new_udp_per_second": 800,
+              "pending": 512,
+              "queue_bytes": 67108864,
+              "tcp": 38015,
+              "udp": 16384
+            },
+            "mode": "auto",
+            "pressure": "normal",
+            "resources": {
+              "cgroup_cpu_percent": 0.0,
+              "cpu_cores": 4.0,
+              "fd_soft_limit": 1048576,
+              "memory_available_bytes": 14619029504,
+              "memory_total_bytes": 16777072640,
+              "process_cpu_percent": 37.22661662194156,
+              "system_cpu_percent": 76.23888182973316,
+              "valid": true
+            },
+            "samples": 10
+          },
+          "pending_handshakes": 0,
+          "queued_udp_bytes": 0,
+          "rules": 1,
+          "tcp_accepted": 0,
+          "tcp_active": 0,
+          "tcp_bytes": 0,
+          "tcp_failed": 0,
+          "tracked_ips": 1,
+          "udp_active": 8,
+          "udp_bytes": 2814742884,
+          "udp_created": 8,
+          "udp_packets": 2029932,
+          "udp_rejected": 0,
+          "version": "0.1.1"
+        },
+        "router_rss_kib": 4772,
+        "router_peak_rss_kib": 4772
+      }
+    ],
+    "up": [
+      {
+        "bytes": 3439329280,
+        "errors": 0,
+        "gbps": 2.7329508842311796,
+        "seconds": 10.067738282,
+        "transfers": 410,
+        "mode": "direct",
+        "direction": "up",
+        "router_cpu_percent": 0.0
+      },
+      {
+        "bytes": 2424307712,
+        "errors": 0,
+        "gbps": 1.9149626157642285,
+        "seconds": 10.127853952,
+        "transfers": 289,
+        "mode": "routed",
+        "direction": "up",
+        "router_cpu_percent": 72.42910062770984,
+        "router_stats": {
+          "capacity": {
+            "admission_rejected": 0,
+            "capacity_percent": 100,
+            "ceilings": {
+              "pending": 1024,
+              "per_ip": 128,
+              "tcp": 65536,
+              "udp": 16384
+            },
+            "effective": {
+              "fd_budget": 1047552,
+              "memory_units": 76031,
+              "new_tcp_per_second": 16384,
+              "new_udp_per_second": 800,
+              "pending": 512,
+              "queue_bytes": 67108864,
+              "tcp": 38015,
+              "udp": 16384
+            },
+            "mode": "auto",
+            "pressure": "normal",
+            "resources": {
+              "cgroup_cpu_percent": 0.0,
+              "cpu_cores": 4.0,
+              "fd_soft_limit": 1048576,
+              "memory_available_bytes": 14612619264,
+              "memory_total_bytes": 16777072640,
+              "process_cpu_percent": 38.457035626741146,
+              "system_cpu_percent": 79.84693877551021,
+              "valid": true
+            },
+            "samples": 10
+          },
+          "pending_handshakes": 0,
+          "queued_udp_bytes": 0,
+          "rules": 1,
+          "tcp_accepted": 0,
+          "tcp_active": 0,
+          "tcp_bytes": 0,
+          "tcp_failed": 0,
+          "tracked_ips": 1,
+          "udp_active": 8,
+          "udp_bytes": 2577850021,
+          "udp_created": 8,
+          "udp_packets": 1860187,
+          "udp_rejected": 0,
+          "version": "0.1.1"
+        },
+        "router_rss_kib": 4772,
+        "router_peak_rss_kib": 4772
+      }
+    ]
+  },
+  "soak": {
+    "seconds": 120,
+    "counts": {
+      "tcp": 73123,
+      "quic": 17947,
+      "reconnects": 1552
+    },
+    "failures": [],
+    "rss_min_kib": 5332,
+    "rss_max_kib": 5668,
+    "final": {
+      "capacity": {
+        "admission_rejected": 0,
+        "capacity_percent": 100,
+        "ceilings": {
+          "pending": 128,
+          "per_ip": 512,
+          "tcp": 65536,
+          "udp": 16384
+        },
+        "effective": {
+          "fd_budget": 1047552,
+          "memory_units": 76031,
+          "new_tcp_per_second": 16384,
+          "new_udp_per_second": 800,
+          "pending": 128,
+          "queue_bytes": 67108864,
+          "tcp": 38015,
+          "udp": 16384
+        },
+        "mode": "auto",
+        "pressure": "normal",
+        "resources": {
+          "cgroup_cpu_percent": 0.0,
+          "cpu_cores": 4.0,
+          "fd_soft_limit": 1048576,
+          "memory_available_bytes": 14658117632,
+          "memory_total_bytes": 16777072640,
+          "process_cpu_percent": 0.2496392171594944,
+          "system_cpu_percent": 1.7478152309612984,
+          "valid": true
+        },
+        "samples": 62
+      },
+      "pending_handshakes": 0,
+      "queued_udp_bytes": 0,
+      "rules": 1,
+      "tcp_accepted": 1128,
+      "tcp_active": 0,
+      "tcp_bytes": 599095808,
+      "tcp_failed": 0,
+      "tracked_ips": 0,
+      "udp_active": 0,
+      "udp_bytes": 78586771,
+      "udp_created": 424,
+      "udp_packets": 104903,
+      "udp_rejected": 0,
+      "version": "0.1.1"
+    }
+  }
+}

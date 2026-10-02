@@ -30,6 +30,8 @@ jobs:
           .venv/bin/pip install aioquic==1.3.0
           .venv/bin/python tests/integration.py target/release/host-router
           .venv/bin/python tests/advanced.py target/release/host-router
+      - name: Isolated resource pressure and session preservation
+        run: sudo .venv/bin/python tests/capacity.py target/release/host-router
       - name: Independent QUIC client interoperability
         run: |
           cargo build --locked --release --manifest-path benchmarks/quic-driver/Cargo.toml

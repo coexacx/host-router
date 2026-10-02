@@ -17,6 +17,7 @@ pub struct Config {
     pub sniff_timeout_ms: u64,
     pub dns_refresh_seconds: u64,
     pub udp_idle_seconds: u64,
+    pub auto_capacity: bool,
     pub max_tcp_connections: usize,
     pub max_udp_sessions: usize,
     pub max_connections_per_ip: usize,
@@ -33,11 +34,12 @@ impl Default for Config {
             sniff_timeout_ms: 5000,
             dns_refresh_seconds: 30,
             udp_idle_seconds: 60,
-            max_tcp_connections: 1024,
-            max_udp_sessions: 512,
-            max_connections_per_ip: 64,
-            max_pending_handshakes: 64,
-            udp_queue_bytes: 16 * 1024 * 1024,
+            auto_capacity: true,
+            max_tcp_connections: 65536,
+            max_udp_sessions: 16384,
+            max_connections_per_ip: 4096,
+            max_pending_handshakes: 1024,
+            udp_queue_bytes: 256 * 1024 * 1024,
             rules: vec![],
         }
     }
@@ -303,7 +305,8 @@ impl Config {
         Ok(out.into_iter().map(|(a, r)| (a, Arc::new(r))).collect())
     }
     pub fn compatible_limits(&self, other: &Self) -> bool {
-        self.max_tcp_connections == other.max_tcp_connections
+        self.auto_capacity == other.auto_capacity
+            && self.max_tcp_connections == other.max_tcp_connections
             && self.max_udp_sessions == other.max_udp_sessions
             && self.max_connections_per_ip == other.max_connections_per_ip
             && self.max_pending_handshakes == other.max_pending_handshakes

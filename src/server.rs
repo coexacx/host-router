@@ -1,4 +1,5 @@
 use crate::{
+    capacity::{Capacity, Kind, Sampler},
     config::{Config, Route, Tables},
     dns::Dns,
     net::{self, FrontUdp},
@@ -13,7 +14,7 @@ use std::{
         Arc, Mutex, RwLock,
         atomic::{AtomicU64, Ordering},
     },
-    time::{Duration, Instant},
+    time::Duration,
 };
 use tokio::{
     io::AsyncWriteExt,
@@ -50,23 +51,28 @@ pub struct Shared {
     pub runtime: RwLock<Arc<Runtime>>,
     pub shutdown: CancellationToken,
     pub stats: Stats,
+    pub capacity: Arc<Capacity>,
     tcp: Arc<Semaphore>,
     udp: Arc<Semaphore>,
     pending: Arc<Semaphore>,
     bytes: Arc<Semaphore>,
+    bytes_cap: usize,
+    pending_cap: usize,
     ips: Arc<Mutex<HashMap<IpAddr, usize>>>,
-    new_udp: Mutex<(Instant, u32)>,
 }
 impl Shared {
     pub fn new(runtime: Runtime) -> Arc<Self> {
         let c = &runtime.cfg;
+        let capacity = Capacity::new(c, Sampler::new().sample());
         Arc::new(Self {
+            capacity,
+            bytes_cap: c.udp_queue_bytes,
+            pending_cap: c.max_pending_handshakes,
             tcp: Arc::new(Semaphore::new(c.max_tcp_connections)),
             udp: Arc::new(Semaphore::new(c.max_udp_sessions)),
             pending: Arc::new(Semaphore::new(c.max_pending_handshakes)),
             bytes: Arc::new(Semaphore::new(c.udp_queue_bytes)),
             ips: Arc::new(Mutex::new(HashMap::new())),
-            new_udp: Mutex::new((Instant::now(), 0)),
             runtime: RwLock::new(Arc::new(runtime)),
             shutdown: CancellationToken::new(),
             stats: Stats::default(),
@@ -87,7 +93,17 @@ impl Shared {
             "tcp_accepted":s.tcp_accepted.load(Ordering::Relaxed),"tcp_failed":s.tcp_failed.load(Ordering::Relaxed),
             "tcp_bytes":s.tcp_bytes.load(Ordering::Relaxed),"udp_created":s.udp_created.load(Ordering::Relaxed),
             "udp_packets":s.udp_packets.load(Ordering::Relaxed),"udp_bytes":s.udp_bytes.load(Ordering::Relaxed),
-            "udp_rejected":s.udp_rejected.load(Ordering::Relaxed)})
+            "udp_rejected":s.udp_rejected.load(Ordering::Relaxed),
+            "capacity": self.capacity.status()})
+    }
+    fn pending_guard(&self) -> Option<OwnedSemaphorePermit> {
+        let permit = self.pending.clone().try_acquire_owned().ok()?;
+        if self.pending_cap - self.pending.available_permits()
+            > self.capacity.pending.load(Ordering::Relaxed)
+        {
+            return None;
+        }
+        Some(permit)
     }
     fn ip_guard(&self, ip: IpAddr) -> Option<IpGuard> {
         let limit = self.snapshot().cfg.max_connections_per_ip;
@@ -108,22 +124,16 @@ impl Shared {
             .clone()
             .try_acquire_many_owned(b.len().max(1) as u32)
             .ok()?;
+        if self.bytes_cap - self.bytes.available_permits()
+            > self.capacity.queue.load(Ordering::Relaxed)
+        {
+            return None;
+        }
         Some(Packet {
             bytes: b.to_vec(),
             stride: stride.max(1),
             _permit: permit,
         })
-    }
-    fn allow_new_udp(&self) -> bool {
-        let mut b = self.new_udp.lock().unwrap();
-        if b.0.elapsed() >= Duration::from_secs(1) {
-            *b = (Instant::now(), 0)
-        }
-        if b.1 >= 200 {
-            return false;
-        }
-        b.1 += 1;
-        true
     }
 }
 struct IpGuard {
@@ -207,6 +217,7 @@ impl Manager {
         if let Some(path) = persist {
             crate::control::atomic_config(path, &rt.cfg)?
         }
+        self.shared.capacity.listeners(desired.len());
         *self.shared.runtime.write().unwrap() = Arc::new(rt);
         self.active.retain(|key, token| {
             if desired.contains_key(key) {
@@ -245,6 +256,16 @@ async fn tcp_accept(
             tokio::time::sleep(Duration::from_millis(50)).await;
             continue;
         };
+        let Some(admission) = s.capacity.enter(Kind::Tcp) else {
+            s.stats.tcp_failed.fetch_add(1, Ordering::Relaxed);
+            tokio::time::sleep(Duration::from_millis(2)).await;
+            continue;
+        };
+        let Some(pending) = s.pending_guard() else {
+            s.stats.tcp_failed.fetch_add(1, Ordering::Relaxed);
+            tokio::time::sleep(Duration::from_millis(2)).await;
+            continue;
+        };
         let Ok(limit) = s.tcp.clone().try_acquire_owned() else {
             s.stats.tcp_failed.fetch_add(1, Ordering::Relaxed);
             continue;
@@ -262,9 +283,10 @@ async fn tcp_accept(
         s.stats.tcp_accepted.fetch_add(1, Ordering::Relaxed);
         tokio::spawn(async move {
             let _limit = limit;
+            let _admission = admission;
             let _ip = ip_guard;
             let result = tokio::select! {_=s.shutdown.cancelled()=>return,
-            r=tcp_flow(stream,peer,routes,rt,&s)=>r};
+            r=tcp_flow(stream,peer,routes,rt,pending,&s)=>r};
             if result.is_err() {
                 s.stats.tcp_failed.fetch_add(1, Ordering::Relaxed);
             }
@@ -276,10 +298,10 @@ async fn tcp_flow(
     peer: SocketAddr,
     routes: Arc<crate::config::ListenerRoutes>,
     rt: Arc<Runtime>,
+    pending: OwnedSemaphorePermit,
     s: &Arc<Shared>,
 ) -> Result<()> {
     net::tune_tcp(&stream)?;
-    let pending = s.pending.clone().try_acquire_owned()?;
     let (host, prefix) = tokio::time::timeout(
         Duration::from_millis(rt.cfg.sniff_timeout_ms),
         sniff::tcp(&mut stream, routes.tcp.has_names()),
@@ -423,11 +445,12 @@ async fn udp_hub(front: Arc<FrontUdp>, s: Arc<Shared>, stop: CancellationToken) 
                         enqueue_udp(&s,&flows,id,&buf[start..finish],stride);
                     }
                     // Ordinary UDP, unknown QUIC versions and missing Initial packets never create a flow.
-                    if !initial || bytes.len()<1200 || ids.len()>=8 || !s.allow_new_udp(){
+                    if !initial || bytes.len()<1200 || ids.len()>=8{
                         s.stats.udp_rejected.fetch_add(1,Ordering::Relaxed);continue
                     }
+                    let Some(admission)=s.capacity.enter(Kind::Udp) else{s.stats.udp_rejected.fetch_add(1,Ordering::Relaxed);continue};
                     let Ok(limit)=s.udp.clone().try_acquire_owned() else{s.stats.udp_rejected.fetch_add(1,Ordering::Relaxed);continue};
-                    let Ok(pending)=s.pending.clone().try_acquire_owned() else{s.stats.udp_rejected.fetch_add(1,Ordering::Relaxed);continue};
+                    let Some(pending)=s.pending_guard() else{s.stats.udp_rejected.fetch_add(1,Ordering::Relaxed);continue};
                     let Some(ip_guard)=s.ip_guard(peer.ip()) else{s.stats.udp_rejected.fetch_add(1,Ordering::Relaxed);continue};
                     let Some(p)=s.packet(bytes,bytes.len()) else{s.stats.udp_rejected.fetch_add(1,Ordering::Relaxed);continue};
                     let rt=s.snapshot();let Some(routes)=rt.tables.get(&front.addr).cloned() else{continue};
@@ -441,7 +464,7 @@ async fn udp_hub(front: Arc<FrontUdp>, s: Arc<Shared>, stop: CancellationToken) 
                     s.stats.udp_created.fetch_add(1,Ordering::Relaxed);
                     let events=events.clone();let s=s.clone();let stop=stop.clone();let front=front.clone();
                     tokio::spawn(async move{
-                        let _limit=limit;let _ip=ip_guard;
+                        let _limit=limit;let _admission=admission;let _ip=ip_guard;
                         let result=tokio::select!{_=stop.cancelled()=>return,
                             r=udp_flow(id,peer,local,&front,queue,&events,pending,&s,rt,routes)=>r};
                         if result.is_err(){s.stats.udp_rejected.fetch_add(1,Ordering::Relaxed);}

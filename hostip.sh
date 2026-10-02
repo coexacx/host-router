@@ -3,10 +3,10 @@
 set -Eeuo pipefail
 umask 077
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-VERSION=0.1.0
+VERSION=0.1.1
 REPO=coexacx/host-router
-AMD64_SHA=df123f6ee9aa382fd5f4b540e8e29bb1f2c3aedbbcfa8e4fe7cfc9ae744650ac
-ARM64_SHA=6d432fcae54a211ef55431201ab42e95d351248164b13ca9ce09139ed70cdaf6
+AMD64_SHA=0d9133597f9d7b07c24d1ee912f4e50e24a541e2f48a0f46dcdb95218799f1e2
+ARM64_SHA=9de814353fce8d9bdc4ef34ba421f78cf965e8839399b51fd9e8eb93035605af
 BIN="${HOST_ROUTER_BIN:-/usr/local/bin/host-router}"
 CFG="${HOST_ROUTER_CONFIG:-/etc/host-router/config.json}"
 SERVICE=host-router
@@ -108,7 +108,6 @@ ExecReload=/bin/kill -HUP $MAINPID
 Restart=on-failure
 RestartSec=3
 TimeoutStopSec=10
-LimitNOFILE=65536
 TasksMax=256
 UMask=0077
 AmbientCapabilities=CAP_NET_BIND_SERVICE
@@ -130,6 +129,10 @@ LockPersonality=yes
 MemoryDenyWriteExecute=yes
 RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
 SystemCallArchitectures=native
+
+UNIT
+  "$candidate" capacity-plan --systemd >> "$work/service"
+  cat >> "$work/service" <<'UNIT'
 
 [Install]
 WantedBy=multi-user.target
@@ -210,7 +213,7 @@ edit_rule() {
 }
 settings() {
   local n action tmp editor
-  printf '1. DDNS 刷新间隔\n2. 默认目标端口\n3. 编辑配置\n0. 返回\n'
+  printf '1. DDNS 刷新间隔\n2. 默认目标端口\n3. 编辑配置\n4. 容量与负载详情\n0. 返回\n'
   read -r -p '选择：' action
   mode_args
   case "$action" in
@@ -219,6 +222,7 @@ settings() {
     3) tmp="$(mktemp)"; cp -- "$CFG" "$tmp"; editor="${EDITOR:-vi}"
        "$editor" "$tmp" && run_cli apply --file "$tmp" "${OFFLINE[@]}"
        rm -f -- "$tmp";;
+    4) run_cli status;;
   esac
 }
 service_menu() {
@@ -237,10 +241,10 @@ service_menu() {
   esac
 }
 header() {
-  local state=stopped version=未安装 count=0 tcp=0 udp=0 dns=30 line
+  local state=stopped version=未安装 count=0 tcp=0 udp=0 dns=30 line mode=- ta=0 tc=0 ua=0 uc=0
   if [[ -x "$BIN" && -f "$CFG" ]]; then
     line="$(run_cli summary 2>/dev/null || true)"
-    if [[ -n "$line" ]]; then read -r state version count tcp udp dns <<< "$line"; fi
+    if [[ -n "$line" ]]; then read -r state version count tcp udp dns mode ta tc ua uc <<< "$line"; fi
   fi
   [[ "$state" != running ]] || state=运行中
   [[ "$state" != stopped ]] || state=已停止
@@ -248,6 +252,11 @@ header() {
   printf '  内核 %-10s  状态 %s\n' "$version" "$state"
   printf '  规则 %-10s  TCP %s · UDP %s\n' "$count" "$tcp" "$udp"
   printf '  DDNS %s 秒        UDP 仅 QUIC\n' "$dns"
+  if [[ "$mode" == auto || "$mode" == manual ]]; then
+    [[ "$mode" != auto ]] || mode=自动
+    [[ "$mode" != manual ]] || mode=手动
+    printf '  容量 %s · TCP %s/%s · QUIC %s/%s\n' "$mode" "$ta" "$tc" "$ua" "$uc"
+  fi
   printf '  ─────────────────────────────────────────\n'
 }
 menu() {

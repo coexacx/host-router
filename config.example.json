@@ -5,11 +5,11 @@
   "sniff_timeout_ms": 5000,
   "dns_refresh_seconds": 30,
   "udp_idle_seconds": 60,
-  "max_tcp_connections": 1024,
-  "max_udp_sessions": 512,
-  "max_connections_per_ip": 64,
-  "max_pending_handshakes": 64,
-  "udp_queue_bytes": 16777216,
+  "max_tcp_connections": 65536,
+  "max_udp_sessions": 16384,
+  "max_connections_per_ip": 4096,
+  "max_pending_handshakes": 1024,
+  "udp_queue_bytes": 268435456,
   "rules": [
     {
       "listen": "443",
@@ -25,5 +25,6 @@
       "protocol": "both",
       "note": ""
     }
-  ]
+  ],
+  "auto_capacity": true
 }

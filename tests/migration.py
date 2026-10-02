@@ -58,7 +58,7 @@ async def main():
         (work/"upgrade.log").write_text(result.stdout+"\n"+result.stderr)
         assert result.returncode==0,(result.stdout,result.stderr)
         await asyncio.sleep(1)
-        assert command(str(BIN),"--version").stdout.strip()=="host-router 0.1.0"
+        assert command(str(BIN),"--version").stdout.strip()==command(rust,"--version").stdout.strip()
         command(str(BIN),"-check","-c",str(path))
         migrated=json.loads(path.read_text())
         assert len(migrated["rules"])==len(rules)

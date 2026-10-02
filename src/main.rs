@@ -1,4 +1,5 @@
 #![forbid(unsafe_code)]
+mod capacity;
 mod config;
 mod control;
 mod dns;
@@ -38,6 +39,10 @@ enum Command {
         asset: String,
     },
     Summary,
+    CapacityPlan {
+        #[arg(long)]
+        systemd: bool,
+    },
     Edit {
         id: usize,
         #[arg(long)]
@@ -209,6 +214,35 @@ async fn run() -> Result<()> {
             signature,
             asset,
         } => release::verify(&manifest, &signature, &asset)?,
+        Command::CapacityPlan { systemd } => {
+            let r = capacity::Sampler::new().sample();
+            ensure!(
+                r.valid,
+                "resource detection failed; check /proc and cgroup visibility"
+            );
+            if systemd {
+                let maximum = std::fs::read_to_string("/proc/sys/fs/nr_open")?
+                    .trim()
+                    .parse::<u64>()?
+                    .min(1048576);
+                ensure!(maximum >= 1024, "system descriptor ceiling is too low");
+                println!(
+                    "LimitNOFILE={maximum}\nMemoryHigh={}\nMemoryMax={}\nCPUWeight=80",
+                    r.memory_total_bytes * 70 / 100,
+                    r.memory_total_bytes * 80 / 100
+                );
+            } else {
+                let c = if cli.config.exists() {
+                    read_cfg(&cli.config)?
+                } else {
+                    Config::default()
+                };
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&capacity::Capacity::new(&c, r).status())?
+                );
+            }
+        }
         Command::Summary => {
             let cfg = read_cfg(&cli.config)?;
             let live = control::request(
@@ -227,7 +261,7 @@ async fn run() -> Result<()> {
             let tcp = rt.values().filter(|r| r.tcp_enabled).count();
             let udp = rt.values().filter(|r| r.udp_enabled).count();
             println!(
-                "{} {} {} {} {} {}",
+                "{} {} {} {} {} {} {} {} {} {} {}",
                 if live.is_some() { "running" } else { "stopped" },
                 env!("CARGO_PKG_VERSION"),
                 live.as_ref()
@@ -236,7 +270,27 @@ async fn run() -> Result<()> {
                     .unwrap_or(cfg.rules.len() as u64),
                 tcp,
                 udp,
-                cfg.dns_refresh_seconds
+                cfg.dns_refresh_seconds,
+                live.as_ref()
+                    .and_then(|v| v.pointer("/capacity/mode"))
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("-"),
+                live.as_ref()
+                    .and_then(|v| v.pointer("/tcp_active"))
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0),
+                live.as_ref()
+                    .and_then(|v| v.pointer("/capacity/effective/tcp"))
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0),
+                live.as_ref()
+                    .and_then(|v| v.pointer("/udp_active"))
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0),
+                live.as_ref()
+                    .and_then(|v| v.pointer("/capacity/effective/udp"))
+                    .and_then(|v| v.as_u64())
+                    .unwrap_or(0)
             );
         }
         Command::Edit {
@@ -420,6 +474,7 @@ async fn run() -> Result<()> {
             let mut m = server::Manager::new(cfg.clone())?;
             m.apply(cfg, Some(&cli.config))?;
             let shared = m.shared.clone();
+            tokio::spawn(shared.capacity.clone().monitor(shared.shutdown.clone()));
             let m = Arc::new(Mutex::new(m));
             let manager = m.clone();
             let path = cli.config.clone();
